@@ -1,0 +1,791 @@
+   1              		.cpu arm926ej-s
+   2              		.fpu softvfp
+   3              		.eabi_attribute 20, 1
+   4              		.eabi_attribute 21, 1
+   5              		.eabi_attribute 23, 3
+   6              		.eabi_attribute 24, 1
+   7              		.eabi_attribute 25, 1
+   8              		.eabi_attribute 26, 1
+   9              		.eabi_attribute 30, 6
+  10              		.eabi_attribute 34, 0
+  11              		.eabi_attribute 18, 4
+  12              		.file	"RunApplication.c"
+  13              		.text
+  14              	.Ltext0:
+  15              		.cfi_sections	.debug_frame
+  16              		.comm	ApplicationThread,168,4
+  17              		.comm	glApplicationEvent,40,4
+  18              		.comm	AvailableBytes,2,2
+  19              		.comm	DmaBuffer,12,4
+  20              		.section	.rodata
+  21              		.align	2
+  22              	.LC1:
+  23 0000 0A576169 		.ascii	"\012Waiting for a buffer from the host\000"
+  23      74696E67 
+  23      20666F72 
+  23      20612062 
+  23      75666665 
+  24              		.align	2
+  25              	.LC2:
+  26 0024 0A476F74 		.ascii	"\012Got data buffer Length = %d\000"
+  26      20646174 
+  26      61206275 
+  26      66666572 
+  26      204C656E 
+  27 0041 000000   		.align	2
+  28              	.LC3:
+  29 0044 0D0A476F 		.ascii	"\015\012Got data: = %s\000"
+  29      74206461 
+  29      74613A20 
+  29      3D202573 
+  29      00
+  30 0055 000000   		.align	2
+  31              	.LC4:
+  32 0058 52657475 		.ascii	"Return DMA Buffer\000"
+  32      726E2044 
+  32      4D412042 
+  32      75666665 
+  32      7200
+  33              		.section	.text.readByte,"ax",%progbits
+  34              		.align	2
+  35              		.global	readByte
+  37              	readByte:
+  38              	.LFB0:
+  39              		.file 1 "../RunApplication.c"
+   1:../RunApplication.c **** // CPLD_Programmer - an XSVF file is downloaded from the PC and this program bitbangs IO to program
+   2:../RunApplication.c **** //
+   3:../RunApplication.c **** // john@usb-by-example.com
+   4:../RunApplication.c **** //
+   5:../RunApplication.c **** 
+   6:../RunApplication.c **** #include "Application.h"
+   7:../RunApplication.c **** 
+   8:../RunApplication.c **** extern CyU3PReturnStatus_t InitializeDebugConsole(void);
+   9:../RunApplication.c **** extern CyU3PReturnStatus_t InitializeUSB(void);
+  10:../RunApplication.c **** extern void CheckStatus(char* StringPtr, CyU3PReturnStatus_t Status);
+  11:../RunApplication.c **** extern void IndicateError(uint16_t ErrorCode);
+  12:../RunApplication.c **** extern void xsvfExecute(void);
+  13:../RunApplication.c **** 
+  14:../RunApplication.c **** extern CyU3PDmaChannel glDmaChannelHandle;
+  15:../RunApplication.c **** 
+  16:../RunApplication.c **** CyU3PThread ApplicationThread;			// Handle to my Application Thread
+  17:../RunApplication.c **** CyU3PEvent glApplicationEvent;			// An Event to allow threads to communicate
+  18:../RunApplication.c **** uint16_t AvailableBytes;				// Bytes in DMA buffer not read yet
+  19:../RunApplication.c **** CyU3PDmaBuffer_t DmaBuffer;
+  20:../RunApplication.c **** 
+  21:../RunApplication.c **** void readByte(unsigned char *DataPtr)
+  22:../RunApplication.c **** {
+  40              		.loc 1 22 0
+  41              		.cfi_startproc
+  42              		@ args = 0, pretend = 0, frame = 16
+  43              		@ frame_needed = 1, uses_anonymous_args = 0
+  44 0000 00482DE9 		stmfd	sp!, {fp, lr}
+  45              	.LCFI0:
+  46              		.cfi_def_cfa_offset 8
+  47              		.cfi_offset 11, -8
+  48              		.cfi_offset 14, -4
+  49 0004 04B08DE2 		add	fp, sp, #4
+  50              	.LCFI1:
+  51              		.cfi_def_cfa 11, 4
+  52 0008 10D04DE2 		sub	sp, sp, #16
+  53 000c 10000BE5 		str	r0, [fp, #-16]
+  23:../RunApplication.c **** 	// Get a data byte from the input DMA channel
+  24:../RunApplication.c **** 	CyU3PReturnStatus_t Status;
+  25:../RunApplication.c **** 	if (AvailableBytes == 0)
+  54              		.loc 1 25 0
+  55 0010 D4309FE5 		ldr	r3, .L4
+  56 0014 B030D3E1 		ldrh	r3, [r3]
+  57 0018 000053E3 		cmp	r3, #0
+  58 001c 1700001A 		bne	.L2
+  26:../RunApplication.c **** 	{
+  27:../RunApplication.c **** 		DebugPrint(4, "\nWaiting for a buffer from the host");
+  59              		.loc 1 27 0
+  60 0020 0400A0E3 		mov	r0, #4
+  61 0024 C4109FE5 		ldr	r1, .L4+4
+  62 0028 FEFFFFEB 		bl	CyU3PDebugPrint
+  28:../RunApplication.c **** 		Status = CyU3PDmaChannelGetBuffer(&glDmaChannelHandle, &DmaBuffer, CYU3P_WAIT_FOREVER);
+  63              		.loc 1 28 0
+  64 002c C0009FE5 		ldr	r0, .L4+8
+  65 0030 C0109FE5 		ldr	r1, .L4+12
+  66 0034 0020E0E3 		mvn	r2, #0
+  67 0038 FEFFFFEB 		bl	CyU3PDmaChannelGetBuffer
+  68 003c 08000BE5 		str	r0, [fp, #-8]
+  29:../RunApplication.c **** 		AvailableBytes = DmaBuffer.count;
+  69              		.loc 1 29 0
+  70 0040 B0309FE5 		ldr	r3, .L4+12
+  71 0044 B420D3E1 		ldrh	r2, [r3, #4]
+  72 0048 9C309FE5 		ldr	r3, .L4
+  73 004c B020C3E1 		strh	r2, [r3]	@ movhi
+  30:../RunApplication.c **** 		DebugPrint(4, "\nGot data buffer Length = %d", AvailableBytes);
+  74              		.loc 1 30 0
+  75 0050 94309FE5 		ldr	r3, .L4
+  76 0054 B030D3E1 		ldrh	r3, [r3]
+  77 0058 0400A0E3 		mov	r0, #4
+  78 005c 98109FE5 		ldr	r1, .L4+16
+  79 0060 0320A0E1 		mov	r2, r3
+  80 0064 FEFFFFEB 		bl	CyU3PDebugPrint
+  31:../RunApplication.c **** 		DebugPrint(4, "\r\nGot data: = %s", DmaBuffer.buffer);
+  81              		.loc 1 31 0
+  82 0068 88309FE5 		ldr	r3, .L4+12
+  83 006c 003093E5 		ldr	r3, [r3]
+  84 0070 0400A0E3 		mov	r0, #4
+  85 0074 84109FE5 		ldr	r1, .L4+20
+  86 0078 0320A0E1 		mov	r2, r3
+  87 007c FEFFFFEB 		bl	CyU3PDebugPrint
+  88              	.L2:
+  32:../RunApplication.c **** 	}
+  33:../RunApplication.c **** 	*DataPtr = *DmaBuffer.buffer++;
+  89              		.loc 1 33 0
+  90 0080 70309FE5 		ldr	r3, .L4+12
+  91 0084 003093E5 		ldr	r3, [r3]
+  92 0088 011083E2 		add	r1, r3, #1
+  93 008c 64209FE5 		ldr	r2, .L4+12
+  94 0090 001082E5 		str	r1, [r2]
+  95 0094 0020D3E5 		ldrb	r2, [r3]	@ zero_extendqisi2
+  96 0098 10301BE5 		ldr	r3, [fp, #-16]
+  97 009c 0020C3E5 		strb	r2, [r3]
+  34:../RunApplication.c **** 	if (--AvailableBytes == 0)
+  98              		.loc 1 34 0
+  99 00a0 44309FE5 		ldr	r3, .L4
+ 100 00a4 B030D3E1 		ldrh	r3, [r3]
+ 101 00a8 013043E2 		sub	r3, r3, #1
+ 102 00ac 0338A0E1 		mov	r3, r3, asl #16
+ 103 00b0 2328A0E1 		mov	r2, r3, lsr #16
+ 104 00b4 30309FE5 		ldr	r3, .L4
+ 105 00b8 B020C3E1 		strh	r2, [r3]	@ movhi
+ 106 00bc 28309FE5 		ldr	r3, .L4
+ 107 00c0 B030D3E1 		ldrh	r3, [r3]
+ 108 00c4 000053E3 		cmp	r3, #0
+ 109 00c8 0500001A 		bne	.L1
+  35:../RunApplication.c **** 	{
+  36:../RunApplication.c ****         // Can now give the buffer back to the DMA controller so that it can refill it
+  37:../RunApplication.c ****         Status = CyU3PDmaChannelDiscardBuffer(&glDmaChannelHandle);
+ 110              		.loc 1 37 0
+ 111 00cc 20009FE5 		ldr	r0, .L4+8
+ 112 00d0 FEFFFFEB 		bl	CyU3PDmaChannelDiscardBuffer
+ 113 00d4 08000BE5 		str	r0, [fp, #-8]
+  38:../RunApplication.c ****         CheckStatus("Return DMA Buffer", Status);
+ 114              		.loc 1 38 0
+ 115 00d8 24009FE5 		ldr	r0, .L4+24
+ 116 00dc 08101BE5 		ldr	r1, [fp, #-8]
+ 117 00e0 FEFFFFEB 		bl	CheckStatus
+ 118              	.L1:
+  39:../RunApplication.c **** 	}
+  40:../RunApplication.c **** }
+ 119              		.loc 1 40 0
+ 120 00e4 04D04BE2 		sub	sp, fp, #4
+ 121              		@ sp needed
+ 122 00e8 0088BDE8 		ldmfd	sp!, {fp, pc}
+ 123              	.L5:
+ 124              		.align	2
+ 125              	.L4:
+ 126 00ec 00000000 		.word	AvailableBytes
+ 127 00f0 00000000 		.word	.LC1
+ 128 00f4 00000000 		.word	glDmaChannelHandle
+ 129 00f8 00000000 		.word	DmaBuffer
+ 130 00fc 24000000 		.word	.LC2
+ 131 0100 44000000 		.word	.LC3
+ 132 0104 58000000 		.word	.LC4
+ 133              		.cfi_endproc
+ 134              	.LFE0:
+ 136              		.section	.rodata
+ 137 006a 0000     		.align	2
+ 138              	.LC5:
+ 139 006c 0D0A4469 		.ascii	"\015\012DimaSendData :: data: = %s\000"
+ 139      6D615365 
+ 139      6E644461 
+ 139      7461203A 
+ 139      3A206461 
+ 140 0089 000000   		.align	2
+ 141              	.LC6:
+ 142 008c 0D0A5765 		.ascii	"\015\012We are toggling the pin\000"
+ 142      20617265 
+ 142      20746F67 
+ 142      676C696E 
+ 142      67207468 
+ 143 00a6 0000     		.align	2
+ 144              	.LC0:
+ 145 00a8 00       		.byte	0
+ 146 00a9 01       		.byte	1
+ 147 00aa 00       		.byte	0
+ 148 00ab 01       		.byte	1
+ 149 00ac 00       		.byte	0
+ 150 00ad 00       		.byte	0
+ 151 00ae 01       		.byte	1
+ 152 00af 01       		.byte	1
+ 153 00b0 01       		.byte	1
+ 154 00b1 01       		.byte	1
+ 155 00b2 01       		.byte	1
+ 156 00b3 01       		.byte	1
+ 157 00b4 01       		.byte	1
+ 158 00b5 01       		.byte	1
+ 159 00b6 01       		.byte	1
+ 160 00b7 01       		.byte	1
+ 161              		.section	.text.DimaSendData,"ax",%progbits
+ 162              		.align	2
+ 163              		.global	DimaSendData
+ 165              	DimaSendData:
+ 166              	.LFB1:
+  41:../RunApplication.c **** 
+  42:../RunApplication.c **** //void DimaSendData() {
+  43:../RunApplication.c **** //	unsigned char data[8];// = {0, 0, 1, 1, 0, 1, 0, 0, 0, 1, };
+  44:../RunApplication.c **** //	unsigned char* data1;
+  45:../RunApplication.c **** //	readByte(data1);
+  46:../RunApplication.c **** //	DebugPrint(4, "\r\nDimaSendData :: data: = %s", DmaBuffer.buffer);
+  47:../RunApplication.c **** //	//itoa(222);
+  48:../RunApplication.c **** //	//unsigned char dataDollar = '$';
+  49:../RunApplication.c **** //	short j = 8;//DmaBuffer.count;
+  50:../RunApplication.c **** //	while (j > 0) {// (int i = 0; i < 8; ++i) {
+  51:../RunApplication.c **** //		data[j] = (DmaBuffer.buffer[0]) & (1 << j);
+  52:../RunApplication.c **** //		--j;
+  53:../RunApplication.c **** //	}
+  54:../RunApplication.c **** //	j = 8;
+  55:../RunApplication.c **** //	while(j > 0) {
+  56:../RunApplication.c **** //		CyU3PGpioSetValue(TMS, data[j]);
+  57:../RunApplication.c **** //		CyU3PGpioSetValue(TCK, 0);
+  58:../RunApplication.c **** //		CyU3PGpioSetValue(TCK, 1);
+  59:../RunApplication.c **** //		// CyU3PGpioGetValue();
+  60:../RunApplication.c **** //		--j;
+  61:../RunApplication.c **** //	}
+  62:../RunApplication.c **** //}
+  63:../RunApplication.c **** 
+  64:../RunApplication.c **** void DimaSendData() {
+ 167              		.loc 1 64 0
+ 168              		.cfi_startproc
+ 169              		@ args = 0, pretend = 0, frame = 32
+ 170              		@ frame_needed = 1, uses_anonymous_args = 0
+ 171 0000 00482DE9 		stmfd	sp!, {fp, lr}
+ 172              	.LCFI2:
+ 173              		.cfi_def_cfa_offset 8
+ 174              		.cfi_offset 11, -8
+ 175              		.cfi_offset 14, -4
+ 176 0004 04B08DE2 		add	fp, sp, #4
+ 177              	.LCFI3:
+ 178              		.cfi_def_cfa 11, 4
+ 179 0008 20D04DE2 		sub	sp, sp, #32
+  65:../RunApplication.c **** 	// unsigned char data[] = {0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0};
+  66:../RunApplication.c **** 	unsigned char data[] = {0, 1, 0, 1,     0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+ 180              		.loc 1 66 0
+ 181 000c 40319FE5 		ldr	r3, .L14
+ 182 0010 24104BE2 		sub	r1, fp, #36
+ 183 0014 0320A0E1 		mov	r2, r3
+ 184 0018 1030A0E3 		mov	r3, #16
+ 185 001c 0100A0E1 		mov	r0, r1
+ 186 0020 0210A0E1 		mov	r1, r2
+ 187 0024 0320A0E1 		mov	r2, r3
+ 188 0028 FEFFFFEB 		bl	memcpy
+  67:../RunApplication.c **** 	//unsigned char* data1;
+  68:../RunApplication.c **** 	//readByte(data1);
+  69:../RunApplication.c **** 	DebugPrint(4, "\r\nDimaSendData :: data: = %s", data);
+ 189              		.loc 1 69 0
+ 190 002c 24304BE2 		sub	r3, fp, #36
+ 191 0030 0400A0E3 		mov	r0, #4
+ 192 0034 1C119FE5 		ldr	r1, .L14+4
+ 193 0038 0320A0E1 		mov	r2, r3
+ 194 003c FEFFFFEB 		bl	CyU3PDebugPrint
+  70:../RunApplication.c **** 	//itoa(222);
+  71:../RunApplication.c **** 	//unsigned char dataDollar = '$';
+  72:../RunApplication.c **** //	short j = 8;//DmaBuffer.count;
+  73:../RunApplication.c **** //	while (j > 0) {// (int i = 0; i < 8; ++i) {
+  74:../RunApplication.c **** //		data[j] = (DmaBuffer.buffer[0]) & (1 << j);
+  75:../RunApplication.c **** //		--j;
+  76:../RunApplication.c **** //	}
+  77:../RunApplication.c **** 	CyU3PGpioSetValue(JTAG_TMS, 0);
+ 195              		.loc 1 77 0
+ 196 0040 3900A0E3 		mov	r0, #57
+ 197 0044 0010A0E3 		mov	r1, #0
+ 198 0048 FEFFFFEB 		bl	CyU3PGpioSetValue
+  78:../RunApplication.c **** 	int j = 32;
+ 199              		.loc 1 78 0
+ 200 004c 2030A0E3 		mov	r3, #32
+ 201 0050 08300BE5 		str	r3, [fp, #-8]
+  79:../RunApplication.c **** 	int c = 0;
+ 202              		.loc 1 79 0
+ 203 0054 0030A0E3 		mov	r3, #0
+ 204 0058 0C300BE5 		str	r3, [fp, #-12]
+  80:../RunApplication.c **** 	CyBool_t v = 0;
+ 205              		.loc 1 80 0
+ 206 005c 0030A0E3 		mov	r3, #0
+ 207 0060 10300BE5 		str	r3, [fp, #-16]
+  81:../RunApplication.c **** 	while(j > 0) {
+ 208              		.loc 1 81 0
+ 209 0064 210000EA 		b	.L7
+ 210              	.L11:
+  82:../RunApplication.c **** 		DebugPrint(4, "\r\nWe are toggling the pin");
+ 211              		.loc 1 82 0
+ 212 0068 0400A0E3 		mov	r0, #4
+ 213 006c E8109FE5 		ldr	r1, .L14+8
+ 214 0070 FEFFFFEB 		bl	CyU3PDebugPrint
+  83:../RunApplication.c **** 		CyU3PGpioSetValue(JTAG_TCK, v);
+ 215              		.loc 1 83 0
+ 216 0074 3200A0E3 		mov	r0, #50
+ 217 0078 10101BE5 		ldr	r1, [fp, #-16]
+ 218 007c FEFFFFEB 		bl	CyU3PGpioSetValue
+  84:../RunApplication.c **** 		if (!(j%2)) { CyU3PGpioSetValue(JTAG_TDO, data[c]); c++;}
+ 219              		.loc 1 84 0
+ 220 0080 08301BE5 		ldr	r3, [fp, #-8]
+ 221 0084 013003E2 		and	r3, r3, #1
+ 222 0088 000053E3 		cmp	r3, #0
+ 223 008c 0B00001A 		bne	.L8
+ 224              		.loc 1 84 0 is_stmt 0 discriminator 1
+ 225 0090 1F30E0E3 		mvn	r3, #31
+ 226 0094 0C201BE5 		ldr	r2, [fp, #-12]
+ 227 0098 04104BE2 		sub	r1, fp, #4
+ 228 009c 022081E0 		add	r2, r1, r2
+ 229 00a0 033082E0 		add	r3, r2, r3
+ 230 00a4 0030D3E5 		ldrb	r3, [r3]	@ zero_extendqisi2
+ 231 00a8 3300A0E3 		mov	r0, #51
+ 232 00ac 0310A0E1 		mov	r1, r3
+ 233 00b0 FEFFFFEB 		bl	CyU3PGpioSetValue
+ 234 00b4 0C301BE5 		ldr	r3, [fp, #-12]
+ 235 00b8 013083E2 		add	r3, r3, #1
+ 236 00bc 0C300BE5 		str	r3, [fp, #-12]
+ 237              	.L8:
+  85:../RunApplication.c **** 		//CyU3PGpioSetValue(JTAG_TCK, 1);
+  86:../RunApplication.c **** 		// CyU3PGpioGetValue();
+  87:../RunApplication.c **** 		if (j%2) v = 0;
+ 238              		.loc 1 87 0 is_stmt 1
+ 239 00c0 08301BE5 		ldr	r3, [fp, #-8]
+ 240 00c4 013003E2 		and	r3, r3, #1
+ 241 00c8 000053E3 		cmp	r3, #0
+ 242 00cc 0200000A 		beq	.L9
+ 243              		.loc 1 87 0 is_stmt 0 discriminator 1
+ 244 00d0 0030A0E3 		mov	r3, #0
+ 245 00d4 10300BE5 		str	r3, [fp, #-16]
+ 246 00d8 010000EA 		b	.L10
+ 247              	.L9:
+  88:../RunApplication.c **** 		else v = 1;
+ 248              		.loc 1 88 0 is_stmt 1
+ 249 00dc 0130A0E3 		mov	r3, #1
+ 250 00e0 10300BE5 		str	r3, [fp, #-16]
+ 251              	.L10:
+  89:../RunApplication.c **** 		--j;
+ 252              		.loc 1 89 0
+ 253 00e4 08301BE5 		ldr	r3, [fp, #-8]
+ 254 00e8 013043E2 		sub	r3, r3, #1
+ 255 00ec 08300BE5 		str	r3, [fp, #-8]
+ 256              	.L7:
+  81:../RunApplication.c **** 		DebugPrint(4, "\r\nWe are toggling the pin");
+ 257              		.loc 1 81 0 discriminator 1
+ 258 00f0 08301BE5 		ldr	r3, [fp, #-8]
+ 259 00f4 000053E3 		cmp	r3, #0
+ 260 00f8 DAFFFFCA 		bgt	.L11
+  90:../RunApplication.c **** 	}
+  91:../RunApplication.c **** 	CyU3PGpioSetValue(JTAG_TMS, 1);
+ 261              		.loc 1 91 0
+ 262 00fc 3900A0E3 		mov	r0, #57
+ 263 0100 0110A0E3 		mov	r1, #1
+ 264 0104 FEFFFFEB 		bl	CyU3PGpioSetValue
+  92:../RunApplication.c **** 
+  93:../RunApplication.c **** 	int i = 0;
+ 265              		.loc 1 93 0
+ 266 0108 0030A0E3 		mov	r3, #0
+ 267 010c 14300BE5 		str	r3, [fp, #-20]
+  94:../RunApplication.c **** 	for (i = 0; i < 1000; i++) {
+ 268              		.loc 1 94 0
+ 269 0110 0030A0E3 		mov	r3, #0
+ 270 0114 14300BE5 		str	r3, [fp, #-20]
+ 271 0118 050000EA 		b	.L12
+ 272              	.L13:
+  95:../RunApplication.c **** 		CyU3PGpioSetValue(JTAG_TDI, 0);
+ 273              		.loc 1 95 0 discriminator 2
+ 274 011c 3400A0E3 		mov	r0, #52
+ 275 0120 0010A0E3 		mov	r1, #0
+ 276 0124 FEFFFFEB 		bl	CyU3PGpioSetValue
+  94:../RunApplication.c **** 	for (i = 0; i < 1000; i++) {
+ 277              		.loc 1 94 0 discriminator 2
+ 278 0128 14301BE5 		ldr	r3, [fp, #-20]
+ 279 012c 013083E2 		add	r3, r3, #1
+ 280 0130 14300BE5 		str	r3, [fp, #-20]
+ 281              	.L12:
+  94:../RunApplication.c **** 	for (i = 0; i < 1000; i++) {
+ 282              		.loc 1 94 0 is_stmt 0 discriminator 1
+ 283 0134 14301BE5 		ldr	r3, [fp, #-20]
+ 284 0138 FA0F53E3 		cmp	r3, #1000
+ 285 013c F6FFFFBA 		blt	.L13
+  96:../RunApplication.c **** 	}
+  97:../RunApplication.c **** 	CyU3PGpioSetValue(JTAG_TDI, 1);
+ 286              		.loc 1 97 0 is_stmt 1
+ 287 0140 3400A0E3 		mov	r0, #52
+ 288 0144 0110A0E3 		mov	r1, #1
+ 289 0148 FEFFFFEB 		bl	CyU3PGpioSetValue
+  98:../RunApplication.c **** }
+ 290              		.loc 1 98 0
+ 291 014c 04D04BE2 		sub	sp, fp, #4
+ 292              		@ sp needed
+ 293 0150 0088BDE8 		ldmfd	sp!, {fp, pc}
+ 294              	.L15:
+ 295              		.align	2
+ 296              	.L14:
+ 297 0154 A8000000 		.word	.LC0
+ 298 0158 6C000000 		.word	.LC5
+ 299 015c 8C000000 		.word	.LC6
+ 300              		.cfi_endproc
+ 301              	.LFE1:
+ 303              		.section	.rodata
+ 304              		.align	2
+ 305              	.LC7:
+ 306 00b8 44656275 		.ascii	"Debug Console Initialized\000"
+ 306      6720436F 
+ 306      6E736F6C 
+ 306      6520496E 
+ 306      69746961 
+ 307 00d2 0000     		.align	2
+ 308              	.LC8:
+ 309 00d4 43726561 		.ascii	"Create Event\000"
+ 309      74652045 
+ 309      76656E74 
+ 309      00
+ 310 00e1 000000   		.align	2
+ 311              	.LC9:
+ 312 00e4 55534220 		.ascii	"USB Initialized\000"
+ 312      496E6974 
+ 312      69616C69 
+ 312      7A656400 
+ 313              		.align	2
+ 314              	.LC10:
+ 315 00f4 0A257320 		.ascii	"\012%s started with %d\000"
+ 315      73746172 
+ 315      74656420 
+ 315      77697468 
+ 315      20256400 
+ 316              		.align	2
+ 317              	.LC11:
+ 318 0108 0A576169 		.ascii	"\012Waiting for data file\000"
+ 318      74696E67 
+ 318      20666F72 
+ 318      20646174 
+ 318      61206669 
+ 319 011f 00       		.align	2
+ 320              	.LC12:
+ 321 0120 0A50726F 		.ascii	"\012Processing Completed\012RESETTING CPU\012\000"
+ 321      63657373 
+ 321      696E6720 
+ 321      436F6D70 
+ 321      6C657465 
+ 322 0145 000000   		.align	2
+ 323              	.LC13:
+ 324 0148 0A417070 		.ascii	"\012Application failed to initialize. Error code: %"
+ 324      6C696361 
+ 324      74696F6E 
+ 324      20666169 
+ 324      6C656420 
+ 325 0178 642E0A00 		.ascii	"d.\012\000"
+ 326              		.section	.text.ApplicationThread_Entry,"ax",%progbits
+ 327              		.align	2
+ 328              		.global	ApplicationThread_Entry
+ 330              	ApplicationThread_Entry:
+ 331              	.LFB2:
+  99:../RunApplication.c **** 
+ 100:../RunApplication.c **** 
+ 101:../RunApplication.c **** void ApplicationThread_Entry (uint32_t Value)
+ 102:../RunApplication.c **** {
+ 332              		.loc 1 102 0
+ 333              		.cfi_startproc
+ 334              		@ args = 0, pretend = 0, frame = 24
+ 335              		@ frame_needed = 1, uses_anonymous_args = 0
+ 336 0000 00482DE9 		stmfd	sp!, {fp, lr}
+ 337              	.LCFI4:
+ 338              		.cfi_def_cfa_offset 8
+ 339              		.cfi_offset 11, -8
+ 340              		.cfi_offset 14, -4
+ 341 0004 04B08DE2 		add	fp, sp, #4
+ 342              	.LCFI5:
+ 343              		.cfi_def_cfa 11, 4
+ 344 0008 30D04DE2 		sub	sp, sp, #48
+ 345 000c 18000BE5 		str	r0, [fp, #-24]
+ 103:../RunApplication.c ****     CyU3PReturnStatus_t Status;
+ 104:../RunApplication.c ****     uint32_t ActualEvents;
+ 105:../RunApplication.c ****     char* ThreadName;
+ 106:../RunApplication.c **** 
+ 107:../RunApplication.c ****     // First step is to get the Debug Console running so that the developer knows what is going on!
+ 108:../RunApplication.c ****     Status = InitializeDebugConsole();
+ 346              		.loc 1 108 0
+ 347 0010 FEFFFFEB 		bl	InitializeDebugConsole
+ 348 0014 08000BE5 		str	r0, [fp, #-8]
+ 109:../RunApplication.c ****     CheckStatus("Debug Console Initialized", Status);
+ 349              		.loc 1 109 0
+ 350 0018 14019FE5 		ldr	r0, .L19
+ 351 001c 08101BE5 		ldr	r1, [fp, #-8]
+ 352 0020 FEFFFFEB 		bl	CheckStatus
+ 110:../RunApplication.c **** 
+ 111:../RunApplication.c ****     // Create an Event which will allow the different threads/modules to synchronize
+ 112:../RunApplication.c ****     Status = CyU3PEventCreate(&glApplicationEvent);
+ 353              		.loc 1 112 0
+ 354 0024 0C019FE5 		ldr	r0, .L19+4
+ 355 0028 0010A0E3 		mov	r1, #0
+ 356 002c 2820A0E3 		mov	r2, #40
+ 357 0030 FEFFFFEB 		bl	_txe_event_flags_create
+ 358 0034 08000BE5 		str	r0, [fp, #-8]
+ 113:../RunApplication.c ****     CheckStatus("Create Event", Status);
+ 359              		.loc 1 113 0
+ 360 0038 FC009FE5 		ldr	r0, .L19+8
+ 361 003c 08101BE5 		ldr	r1, [fp, #-8]
+ 362 0040 FEFFFFEB 		bl	CheckStatus
+ 114:../RunApplication.c **** 
+ 115:../RunApplication.c ****     Status = InitializeUSB();
+ 363              		.loc 1 115 0
+ 364 0044 FEFFFFEB 		bl	InitializeUSB
+ 365 0048 08000BE5 		str	r0, [fp, #-8]
+ 116:../RunApplication.c ****     CheckStatus("USB Initialized", Status);
+ 366              		.loc 1 116 0
+ 367 004c EC009FE5 		ldr	r0, .L19+12
+ 368 0050 08101BE5 		ldr	r1, [fp, #-8]
+ 369 0054 FEFFFFEB 		bl	CheckStatus
+ 117:../RunApplication.c **** 
+ 118:../RunApplication.c ****     if (Status == CY_U3P_SUCCESS)
+ 370              		.loc 1 118 0
+ 371 0058 08301BE5 		ldr	r3, [fp, #-8]
+ 372 005c 000053E3 		cmp	r3, #0
+ 373 0060 2C00001A 		bne	.L17
+ 119:../RunApplication.c ****     {
+ 120:../RunApplication.c ****     	CyU3PThreadInfoGet(&ApplicationThread, &ThreadName, 0, 0, 0);
+ 374              		.loc 1 120 0
+ 375 0064 10304BE2 		sub	r3, fp, #16
+ 376 0068 0020A0E3 		mov	r2, #0
+ 377 006c 00208DE5 		str	r2, [sp]
+ 378 0070 0020A0E3 		mov	r2, #0
+ 379 0074 04208DE5 		str	r2, [sp, #4]
+ 380 0078 0020A0E3 		mov	r2, #0
+ 381 007c 08208DE5 		str	r2, [sp, #8]
+ 382 0080 0020A0E3 		mov	r2, #0
+ 383 0084 0C208DE5 		str	r2, [sp, #12]
+ 384 0088 0020A0E3 		mov	r2, #0
+ 385 008c 10208DE5 		str	r2, [sp, #16]
+ 386 0090 AC009FE5 		ldr	r0, .L19+16
+ 387 0094 0310A0E1 		mov	r1, r3
+ 388 0098 0020A0E3 		mov	r2, #0
+ 389 009c 0030A0E3 		mov	r3, #0
+ 390 00a0 FEFFFFEB 		bl	_txe_thread_info_get
+ 121:../RunApplication.c ****     	ThreadName += 3;	// Skip numeric ID
+ 391              		.loc 1 121 0
+ 392 00a4 10301BE5 		ldr	r3, [fp, #-16]
+ 393 00a8 033083E2 		add	r3, r3, #3
+ 394 00ac 10300BE5 		str	r3, [fp, #-16]
+ 122:../RunApplication.c ****     	DebugPrint(4, "\n%s started with %d", ThreadName, Value);
+ 395              		.loc 1 122 0
+ 396 00b0 10301BE5 		ldr	r3, [fp, #-16]
+ 397 00b4 0400A0E3 		mov	r0, #4
+ 398 00b8 88109FE5 		ldr	r1, .L19+20
+ 399 00bc 0320A0E1 		mov	r2, r3
+ 400 00c0 18301BE5 		ldr	r3, [fp, #-24]
+ 401 00c4 FEFFFFEB 		bl	CyU3PDebugPrint
+ 123:../RunApplication.c ****    		// Wait if the USB connection is not active
+ 124:../RunApplication.c **** 		CyU3PEventGet(&glApplicationEvent, USB_CONNECTION_ACTIVE, CYU3P_EVENT_AND, &ActualEvents, CYU3P_W
+ 402              		.loc 1 124 0
+ 403 00c8 0C304BE2 		sub	r3, fp, #12
+ 404 00cc 0020E0E3 		mvn	r2, #0
+ 405 00d0 00208DE5 		str	r2, [sp]
+ 406 00d4 5C009FE5 		ldr	r0, .L19+4
+ 407 00d8 0110A0E3 		mov	r1, #1
+ 408 00dc 0220A0E3 		mov	r2, #2
+ 409 00e0 FEFFFFEB 		bl	_txe_event_flags_get
+ 125:../RunApplication.c **** 		AvailableBytes = 0;
+ 410              		.loc 1 125 0
+ 411 00e4 60309FE5 		ldr	r3, .L19+24
+ 412 00e8 0020A0E3 		mov	r2, #0
+ 413 00ec B020C3E1 		strh	r2, [r3]	@ movhi
+ 126:../RunApplication.c **** 		DebugPrint(4, "\nWaiting for data file", 0);
+ 414              		.loc 1 126 0
+ 415 00f0 0400A0E3 		mov	r0, #4
+ 416 00f4 54109FE5 		ldr	r1, .L19+28
+ 417 00f8 0020A0E3 		mov	r2, #0
+ 418 00fc FEFFFFEB 		bl	CyU3PDebugPrint
+ 127:../RunApplication.c **** 		// Now run the translation
+ 128:../RunApplication.c **** 		//xsvfExecute();
+ 129:../RunApplication.c **** 		DimaSendData();
+ 419              		.loc 1 129 0
+ 420 0100 FEFFFFEB 		bl	DimaSendData
+ 130:../RunApplication.c **** 		// All done, may as well RESET the board ready to run the next program
+ 131:../RunApplication.c **** 		DebugPrint(4, "\nProcessing Completed\nRESETTING CPU\n");
+ 421              		.loc 1 131 0
+ 422 0104 0400A0E3 		mov	r0, #4
+ 423 0108 44109FE5 		ldr	r1, .L19+32
+ 424 010c FEFFFFEB 		bl	CyU3PDebugPrint
+ 132:../RunApplication.c **** 		CyU3PThreadSleep(100);
+ 425              		.loc 1 132 0
+ 426 0110 6400A0E3 		mov	r0, #100
+ 427 0114 FEFFFFEB 		bl	_tx_thread_sleep
+ 428              	.L17:
+ 133:../RunApplication.c **** 		//CyU3PDeviceReset(CyFalse);
+ 134:../RunApplication.c ****     }
+ 135:../RunApplication.c ****     DebugPrint(4, "\nApplication failed to initialize. Error code: %d.\n", Status);
+ 429              		.loc 1 135 0
+ 430 0118 0400A0E3 		mov	r0, #4
+ 431 011c 34109FE5 		ldr	r1, .L19+36
+ 432 0120 08201BE5 		ldr	r2, [fp, #-8]
+ 433 0124 FEFFFFEB 		bl	CyU3PDebugPrint
+ 136:../RunApplication.c ****     IndicateError(6);
+ 434              		.loc 1 136 0
+ 435 0128 0600A0E3 		mov	r0, #6
+ 436 012c FEFFFFEB 		bl	IndicateError
+ 437              	.L18:
+ 137:../RunApplication.c ****     while (1);		// Hang here
+ 438              		.loc 1 137 0 discriminator 1
+ 439 0130 FEFFFFEA 		b	.L18
+ 440              	.L20:
+ 441              		.align	2
+ 442              	.L19:
+ 443 0134 B8000000 		.word	.LC7
+ 444 0138 00000000 		.word	glApplicationEvent
+ 445 013c D4000000 		.word	.LC8
+ 446 0140 E4000000 		.word	.LC9
+ 447 0144 00000000 		.word	ApplicationThread
+ 448 0148 F4000000 		.word	.LC10
+ 449 014c 00000000 		.word	AvailableBytes
+ 450 0150 08010000 		.word	.LC11
+ 451 0154 20010000 		.word	.LC12
+ 452 0158 48010000 		.word	.LC13
+ 453              		.cfi_endproc
+ 454              	.LFE2:
+ 456              		.section	.rodata
+ 457              		.align	2
+ 458              	.LC14:
+ 459 017c 31353A43 		.ascii	"15:CPLD_Programmmer\000"
+ 459      504C445F 
+ 459      50726F67 
+ 459      72616D6D 
+ 459      6D657200 
+ 460              		.section	.text.CyFxApplicationDefine,"ax",%progbits
+ 461              		.align	2
+ 462              		.global	CyFxApplicationDefine
+ 464              	CyFxApplicationDefine:
+ 465              	.LFB3:
+ 138:../RunApplication.c **** }
+ 139:../RunApplication.c **** 
+ 140:../RunApplication.c **** // ApplicationDefine function is called by RTOS to startup the application thread after it has init
+ 141:../RunApplication.c **** void CyFxApplicationDefine(void)
+ 142:../RunApplication.c **** {
+ 466              		.loc 1 142 0
+ 467              		.cfi_startproc
+ 468              		@ args = 0, pretend = 0, frame = 8
+ 469              		@ frame_needed = 1, uses_anonymous_args = 0
+ 470 0000 00482DE9 		stmfd	sp!, {fp, lr}
+ 471              	.LCFI6:
+ 472              		.cfi_def_cfa_offset 8
+ 473              		.cfi_offset 11, -8
+ 474              		.cfi_offset 14, -4
+ 475 0004 04B08DE2 		add	fp, sp, #4
+ 476              	.LCFI7:
+ 477              		.cfi_def_cfa 11, 4
+ 478 0008 28D04DE2 		sub	sp, sp, #40
+ 143:../RunApplication.c ****     void *StackPtr = NULL;
+ 479              		.loc 1 143 0
+ 480 000c 0030A0E3 		mov	r3, #0
+ 481 0010 08300BE5 		str	r3, [fp, #-8]
+ 144:../RunApplication.c ****     uint32_t Status;
+ 145:../RunApplication.c **** 
+ 146:../RunApplication.c ****     StackPtr = CyU3PMemAlloc(APPLICATION_THREAD_STACK);
+ 482              		.loc 1 146 0
+ 483 0014 010AA0E3 		mov	r0, #4096
+ 484 0018 FEFFFFEB 		bl	CyU3PMemAlloc
+ 485 001c 08000BE5 		str	r0, [fp, #-8]
+ 147:../RunApplication.c ****     Status = CyU3PThreadCreate (&ApplicationThread, // Handle to my Application Thread
+ 486              		.loc 1 147 0
+ 487 0020 08301BE5 		ldr	r3, [fp, #-8]
+ 488 0024 00308DE5 		str	r3, [sp]
+ 489 0028 013AA0E3 		mov	r3, #4096
+ 490 002c 04308DE5 		str	r3, [sp, #4]
+ 491 0030 0830A0E3 		mov	r3, #8
+ 492 0034 08308DE5 		str	r3, [sp, #8]
+ 493 0038 0830A0E3 		mov	r3, #8
+ 494 003c 0C308DE5 		str	r3, [sp, #12]
+ 495 0040 0030A0E3 		mov	r3, #0
+ 496 0044 10308DE5 		str	r3, [sp, #16]
+ 497 0048 0130A0E3 		mov	r3, #1
+ 498 004c 14308DE5 		str	r3, [sp, #20]
+ 499 0050 A830A0E3 		mov	r3, #168
+ 500 0054 18308DE5 		str	r3, [sp, #24]
+ 501 0058 30009FE5 		ldr	r0, .L24
+ 502 005c 30109FE5 		ldr	r1, .L24+4
+ 503 0060 30209FE5 		ldr	r2, .L24+8
+ 504 0064 2A30A0E3 		mov	r3, #42
+ 505 0068 FEFFFFEB 		bl	_txe_thread_create
+ 506 006c 0C000BE5 		str	r0, [fp, #-12]
+ 148:../RunApplication.c ****             "15:CPLD_Programmmer",                	// Thread ID and name
+ 149:../RunApplication.c ****             ApplicationThread_Entry,     			// Thread entry function
+ 150:../RunApplication.c ****             42,                             		// Parameter passed to Thread
+ 151:../RunApplication.c ****             StackPtr,                       		// Pointer to the allocated thread stack
+ 152:../RunApplication.c ****             APPLICATION_THREAD_STACK,               // Allocated thread stack size
+ 153:../RunApplication.c ****             APPLICATION_THREAD_PRIORITY,            // Thread priority
+ 154:../RunApplication.c ****             APPLICATION_THREAD_PRIORITY,            // = Thread priority so no preemption
+ 155:../RunApplication.c ****             CYU3P_NO_TIME_SLICE,            		// Time slice not supported in FX3 implementation
+ 156:../RunApplication.c ****             CYU3P_AUTO_START                		// Start the thread immediately
+ 157:../RunApplication.c ****             );
+ 158:../RunApplication.c **** 
+ 159:../RunApplication.c ****     if (Status != CY_U3P_SUCCESS)
+ 507              		.loc 1 159 0
+ 508 0070 0C301BE5 		ldr	r3, [fp, #-12]
+ 509 0074 000053E3 		cmp	r3, #0
+ 510 0078 0200000A 		beq	.L21
+ 160:../RunApplication.c ****     {
+ 161:../RunApplication.c ****         /* Thread creation failed with the Status = error code */
+ 162:../RunApplication.c ****     	IndicateError(5);
+ 511              		.loc 1 162 0
+ 512 007c 0500A0E3 		mov	r0, #5
+ 513 0080 FEFFFFEB 		bl	IndicateError
+ 514              	.L23:
+ 163:../RunApplication.c ****         /* Application cannot continue. Loop indefinitely */
+ 164:../RunApplication.c ****         while(1);
+ 515              		.loc 1 164 0 discriminator 1
+ 516 0084 FEFFFFEA 		b	.L23
+ 517              	.L21:
+ 165:../RunApplication.c ****     }
+ 166:../RunApplication.c **** }
+ 518              		.loc 1 166 0
+ 519 0088 04D04BE2 		sub	sp, fp, #4
+ 520              		@ sp needed
+ 521 008c 0088BDE8 		ldmfd	sp!, {fp, pc}
+ 522              	.L25:
+ 523              		.align	2
+ 524              	.L24:
+ 525 0090 00000000 		.word	ApplicationThread
+ 526 0094 7C010000 		.word	.LC14
+ 527 0098 00000000 		.word	ApplicationThread_Entry
+ 528              		.cfi_endproc
+ 529              	.LFE3:
+ 531              		.text
+ 532              	.Letext0:
+ 533              		.file 2 "c:\\program files (x86)\\cypress\\ez-usb fx3 sdk\\1.3\\arm gcc\\arm-none-eabi\\include\\s
+ 534              		.file 3 "C:\\Program Files (x86)\\Cypress\\EZ-USB FX3 SDK\\1.3\\/firmware/u3p_firmware/inc/cyu3typ
+ 535              		.file 4 "C:\\Program Files (x86)\\Cypress\\EZ-USB FX3 SDK\\1.3\\/firmware/u3p_firmware/inc/tx_port
+ 536              		.file 5 "C:\\Program Files (x86)\\Cypress\\EZ-USB FX3 SDK\\1.3\\/firmware/u3p_firmware/inc/tx_api.
+ 537              		.file 6 "C:\\Program Files (x86)\\Cypress\\EZ-USB FX3 SDK\\1.3\\/firmware/u3p_firmware/inc/cyu3dma
+ 538              		.file 7 "C:\\Program Files (x86)\\Cypress\\EZ-USB FX3 SDK\\1.3\\/firmware/u3p_firmware/inc/cyu3err
+DEFINED SYMBOLS
+                            *ABS*:00000000 RunApplication.c
+                            *COM*:000000a8 ApplicationThread
+                            *COM*:00000028 glApplicationEvent
+                            *COM*:00000002 AvailableBytes
+                            *COM*:0000000c DmaBuffer
+C:\Users\Sean\AppData\Local\Temp\ccfajvs8.s:21     .rodata:00000000 $d
+C:\Users\Sean\AppData\Local\Temp\ccfajvs8.s:34     .text.readByte:00000000 $a
+C:\Users\Sean\AppData\Local\Temp\ccfajvs8.s:37     .text.readByte:00000000 readByte
+C:\Users\Sean\AppData\Local\Temp\ccfajvs8.s:126    .text.readByte:000000ec $d
+C:\Users\Sean\AppData\Local\Temp\ccfajvs8.s:162    .text.DimaSendData:00000000 $a
+C:\Users\Sean\AppData\Local\Temp\ccfajvs8.s:165    .text.DimaSendData:00000000 DimaSendData
+C:\Users\Sean\AppData\Local\Temp\ccfajvs8.s:297    .text.DimaSendData:00000154 $d
+C:\Users\Sean\AppData\Local\Temp\ccfajvs8.s:327    .text.ApplicationThread_Entry:00000000 $a
+C:\Users\Sean\AppData\Local\Temp\ccfajvs8.s:330    .text.ApplicationThread_Entry:00000000 ApplicationThread_Entry
+C:\Users\Sean\AppData\Local\Temp\ccfajvs8.s:443    .text.ApplicationThread_Entry:00000134 $d
+C:\Users\Sean\AppData\Local\Temp\ccfajvs8.s:461    .text.CyFxApplicationDefine:00000000 $a
+C:\Users\Sean\AppData\Local\Temp\ccfajvs8.s:464    .text.CyFxApplicationDefine:00000000 CyFxApplicationDefine
+C:\Users\Sean\AppData\Local\Temp\ccfajvs8.s:525    .text.CyFxApplicationDefine:00000090 $d
+                     .debug_frame:00000010 $d
+
+UNDEFINED SYMBOLS
+CyU3PDebugPrint
+CyU3PDmaChannelGetBuffer
+CyU3PDmaChannelDiscardBuffer
+CheckStatus
+glDmaChannelHandle
+memcpy
+CyU3PGpioSetValue
+InitializeDebugConsole
+_txe_event_flags_create
+InitializeUSB
+_txe_thread_info_get
+_txe_event_flags_get
+_tx_thread_sleep
+IndicateError
+CyU3PMemAlloc
+_txe_thread_create
